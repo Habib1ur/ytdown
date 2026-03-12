@@ -2,6 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 const ffmpegStatic = require("ffmpeg-static");
+const youtubedl = require("youtube-dl-exec");
 const config = require("../config");
 const logger = require("../utils/logger");
 const { getVideoProfile, getAudioProfile } = require("./transcodeProfiles");
@@ -37,6 +38,22 @@ function emit(jobId, event, payload) {
   if (io) io.to(jobId).emit(event, payload);
 }
 
+async function getStreamUrls(url, outputType) {
+  try {
+    const format = outputType === "audio" ? "bestaudio" : "bestvideo+bestaudio/best";
+    const data = await youtubedl(url, {
+      getUrl: true,
+      format,
+      noWarnings: true,
+      noCheckCertificates: true,
+    });
+    // getUrl with bestvideo+bestaudio can return two lines
+    return data.trim().split("\n");
+  } catch (err) {
+    return [url];
+  }
+}
+
 async function runTranscode(jobId, { sourceUrl, outputType, quality }) {
   try {
     await jobState.setProgress(jobId, 0);
@@ -45,15 +62,25 @@ async function runTranscode(jobId, { sourceUrl, outputType, quality }) {
     const meta = await analyzeSource(sourceUrl);
     const duration = Math.max(1, Number(meta.duration || 1));
 
+    const streamUrls = await getStreamUrls(sourceUrl, outputType);
+
     let ext = "mp4";
-    let args = [];
+    let args = ["-y"];
+
+    // Add inputs
+    for (const url of streamUrls) {
+      args.push("-i", url);
+    }
 
     if (outputType === "video") {
       const profile = getVideoProfile(quality);
-      args = [
-        "-y",
-        "-i",
-        sourceUrl,
+      
+      // Explicitly map video and audio from DASH streams if available
+      if (streamUrls.length > 1) {
+        args.push("-map", "0:v:0", "-map", "1:a:0");
+      }
+
+      args.push(
         "-vf",
         `scale=-2:${profile.height}`,
         "-c:v",
@@ -66,20 +93,18 @@ async function runTranscode(jobId, { sourceUrl, outputType, quality }) {
         "aac",
         "-b:a",
         "128k",
-      ];
+        "-shortest" // Ensure audio/video sync if durations differ slightly
+      );
     } else {
       const profile = getAudioProfile(quality);
       ext = profile.ext;
-      args = [
-        "-y",
-        "-i",
-        sourceUrl,
+      args.push(
         "-vn",
         "-c:a",
         profile.codec,
         "-b:a",
-        profile.bitrate,
-      ];
+        profile.bitrate
+      );
     }
 
     const output = buildOutputPath(jobId, ext);

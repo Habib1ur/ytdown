@@ -1,5 +1,6 @@
 const { spawn } = require("child_process");
 const ffprobeStatic = require("ffprobe-static");
+const youtubedl = require("youtube-dl-exec");
 
 function runFfprobe(url) {
   return new Promise((resolve, reject) => {
@@ -43,20 +44,42 @@ function runFfprobe(url) {
 }
 
 async function analyzeSource(url) {
-  const data = await runFfprobe(url);
-  const streams = data.streams || [];
-  const format = data.format || {};
-  const videoStream = streams.find((s) => s.codec_type === "video");
-  const duration = Number(format.duration || 0);
+  try {
+    // Attempt yt-dlp first for better metadata extraction from streaming sites
+    const data = await youtubedl(url, {
+      dumpSingleJson: true,
+      noWarnings: true,
+      noCheckCertificates: true,
+      preferFreeFormats: true,
+      youtubeSkipDashManifest: true,
+    });
 
-  return {
-    title: (format.tags && format.tags.title) || "Untitled Media",
-    thumbnail: null,
-    duration,
-    width: videoStream ? Number(videoStream.width || 0) : null,
-    height: videoStream ? Number(videoStream.height || 0) : null,
-    sourceBitrate: Number(format.bit_rate || 0),
-  };
+    return {
+      title: data.title || "Untitled Media",
+      thumbnail: data.thumbnail || null,
+      duration: Number(data.duration || 0),
+      width: Number(data.width || 0),
+      height: Number(data.height || 0),
+      sourceBitrate: Number(data.tbr || 0) * 1000, // yt-dlp uses kbps for tbr
+      formats: data.formats, // Keep raw formats for later use if needed
+    };
+  } catch (err) {
+    // Fallback to ffprobe for direct media links
+    const data = await runFfprobe(url);
+    const streams = data.streams || [];
+    const format = data.format || {};
+    const videoStream = streams.find((s) => s.codec_type === "video");
+    const duration = Number(format.duration || 0);
+
+    return {
+      title: (format.tags && format.tags.title) || "Untitled Media",
+      thumbnail: null,
+      duration,
+      width: videoStream ? Number(videoStream.width || 0) : null,
+      height: videoStream ? Number(videoStream.height || 0) : null,
+      sourceBitrate: Number(format.bit_rate || 0),
+    };
+  }
 }
 
 module.exports = {
