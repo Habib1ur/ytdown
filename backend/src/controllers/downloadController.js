@@ -1,7 +1,9 @@
 const fs = require("fs");
-const { mediaQueue } = require("../queue/mediaQueue");
+const { v4: uuidv4 } = require("uuid");
 const { downloadSchema, isAllowedUrl } = require("../utils/validation");
 const jobState = require("../services/jobStateService");
+const { scheduleTranscode } = require("../queue/mediaQueue");
+const { runTranscode, killJob } = require("../services/transcodeService");
 
 async function enqueueDownloadController(req, res, next) {
   try {
@@ -18,19 +20,15 @@ async function enqueueDownloadController(req, res, next) {
       return res.status(400).json({ error: allowed.reason });
     }
 
-    const job = await mediaQueue.add("transcode", {
-      sourceUrl: url,
-      outputType: format,
-      quality,
-    });
+    const jobId = uuidv4();
+    jobState.setQueued(jobId, { url, outputType: format, quality });
 
-    await jobState.setQueued(job.id, {
-      url,
-      outputType: format,
-      quality,
-    });
+    // Fire-and-forget: schedule with in-process concurrency limiter
+    scheduleTranscode(() =>
+      runTranscode(jobId, { sourceUrl: url, outputType: format, quality }),
+    );
 
-    return res.status(202).json({ jobId: job.id, status: "queued" });
+    return res.status(202).json({ jobId, status: "queued" });
   } catch (error) {
     return next(error);
   }
@@ -39,7 +37,7 @@ async function enqueueDownloadController(req, res, next) {
 async function getProgressController(req, res, next) {
   try {
     const { jobId } = req.params;
-    const state = await jobState.getState(jobId);
+    const state = jobState.getState(jobId);
     if (!state) {
       return res.status(404).json({ error: "Job not found" });
     }
@@ -58,7 +56,7 @@ async function getProgressController(req, res, next) {
 async function getJobController(req, res, next) {
   try {
     const { jobId } = req.params;
-    const state = await jobState.getState(jobId);
+    const state = jobState.getState(jobId);
     if (!state) {
       return res.status(404).json({ error: "Job not found" });
     }
@@ -75,13 +73,13 @@ async function getJobController(req, res, next) {
 async function cancelJobController(req, res, next) {
   try {
     const { jobId } = req.params;
-    const job = await mediaQueue.getJob(jobId);
-    if (!job) {
+    const state = jobState.getState(jobId);
+    if (!state) {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    await job.remove();
-    await jobState.setFailed(jobId, "Cancelled by user");
+    killJob(jobId); // kills FFmpeg process if still running
+    jobState.setFailed(jobId, "Cancelled by user");
 
     return res.json({ jobId, status: "cancelled" });
   } catch (error) {
@@ -92,7 +90,7 @@ async function cancelJobController(req, res, next) {
 async function streamFileController(req, res, next) {
   try {
     const { jobId } = req.params;
-    const state = await jobState.getState(jobId);
+    const state = jobState.getState(jobId);
     if (!state) {
       return res.status(404).json({ error: "Job not found" });
     }

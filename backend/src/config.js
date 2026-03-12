@@ -14,12 +14,6 @@ module.exports = {
     process.env.SOCKET_CORS_ORIGIN ||
     process.env.FRONTEND_ORIGIN ||
     "http://localhost:3000",
-  redis: {
-    host: process.env.REDIS_HOST || "127.0.0.1",
-    port: Number(process.env.REDIS_PORT || 6379),
-    password: process.env.REDIS_PASSWORD || undefined,
-    maxRetriesPerRequest: null,
-  },
   queue: {
     name: process.env.QUEUE_NAME || "media-transcode",
     concurrency: Number(process.env.QUEUE_CONCURRENCY || 2),

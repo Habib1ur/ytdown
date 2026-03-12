@@ -3,12 +3,11 @@ const { Server } = require("socket.io");
 const app = require("./app");
 const config = require("./config");
 const logger = require("./utils/logger");
-const { mediaQueueEvents } = require("./queue/mediaQueue");
+const { setIo } = require("./socket");
 const {
   ensureTempRoot,
   startCleanupScheduler,
 } = require("./services/cleanupService");
-const jobState = require("./services/jobStateService");
 
 async function bootstrap() {
   await ensureTempRoot(config.storage.tempRoot);
@@ -22,37 +21,13 @@ async function bootstrap() {
     },
   });
 
+  setIo(io); // expose io to transcodeService for real-time progress events
+
   io.on("connection", (socket) => {
     socket.on("subscribe-job", (jobId) => {
       if (typeof jobId === "string" && jobId.length <= 100) {
         socket.join(jobId);
       }
-    });
-  });
-
-  mediaQueueEvents.on("progress", async ({ jobId, data }) => {
-    await jobState.setProgress(jobId, Number(data || 0));
-    io.to(jobId).emit("job-progress", {
-      jobId,
-      progress: Number(data || 0),
-      status: "processing",
-    });
-  });
-
-  mediaQueueEvents.on("completed", ({ jobId }) => {
-    io.to(jobId).emit("job-completed", {
-      jobId,
-      status: "completed",
-      progress: 100,
-    });
-  });
-
-  mediaQueueEvents.on("failed", async ({ jobId, failedReason }) => {
-    await jobState.setFailed(jobId, failedReason || "Job failed");
-    io.to(jobId).emit("job-failed", {
-      jobId,
-      status: "failed",
-      error: failedReason || "Job failed",
     });
   });
 

@@ -1,24 +1,24 @@
 const crypto = require("crypto");
-const connection = require("../queue/redis");
+
+// In-memory cache: url-hash -> { data, expiresAt }
+const cache = new Map();
 
 function hashKey(url) {
   return crypto.createHash("sha1").update(url).digest("hex");
 }
 
-async function getAnalyzeCache(url) {
-  const key = `analyze:${hashKey(url)}`;
-  const raw = await connection.get(key);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
+function getAnalyzeCache(url) {
+  const entry = cache.get(hashKey(url));
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    cache.delete(hashKey(url));
     return null;
   }
+  return entry.data;
 }
 
-async function setAnalyzeCache(url, data, ttlSeconds = 60 * 15) {
-  const key = `analyze:${hashKey(url)}`;
-  await connection.set(key, JSON.stringify(data), "EX", ttlSeconds);
+function setAnalyzeCache(url, data, ttlSeconds = 60 * 15) {
+  cache.set(hashKey(url), { data, expiresAt: Date.now() + ttlSeconds * 1000 });
 }
 
 module.exports = {

@@ -1,22 +1,27 @@
-const { Queue, QueueEvents } = require("bullmq");
+// In-process concurrency scheduler — no external queue required.
 const config = require("../config");
-const connection = require("./redis");
 
-const mediaQueue = new Queue(config.queue.name, {
-  connection,
-  defaultJobOptions: {
-    attempts: config.queue.attempts,
-    removeOnComplete: 200,
-    removeOnFail: 200,
-    backoff: {
-      type: "exponential",
-      delay: config.queue.backoffMs,
-    },
-  },
-});
+let active = 0;
+const pending = [];
 
-const mediaQueueEvents = new QueueEvents(config.queue.name, {
-  connection,
-});
+/**
+ * Schedule a transcode function with concurrency limiting.
+ * fn must return a Promise. Does not block the caller (fire-and-forget).
+ */
+function scheduleTranscode(fn) {
+  const run = () => {
+    active++;
+    Promise.resolve(fn()).finally(() => {
+      active--;
+      if (pending.length > 0) pending.shift()();
+    });
+  };
 
-module.exports = { mediaQueue, mediaQueueEvents };
+  if (active < config.queue.concurrency) {
+    run();
+  } else {
+    pending.push(run);
+  }
+}
+
+module.exports = { scheduleTranscode };

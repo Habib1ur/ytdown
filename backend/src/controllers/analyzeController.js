@@ -21,7 +21,7 @@ async function analyzeController(req, res, next) {
       return res.status(400).json({ error: allowed.reason });
     }
 
-    const cached = await getAnalyzeCache(url);
+    const cached = getAnalyzeCache(url);
     if (cached) {
       return res.json(cached);
     }
@@ -34,7 +34,7 @@ async function analyzeController(req, res, next) {
       formats: listFormats(meta),
     };
 
-    await setAnalyzeCache(url, response);
+    setAnalyzeCache(url, response);
     return res.json(response);
   } catch (error) {
     return next(error);

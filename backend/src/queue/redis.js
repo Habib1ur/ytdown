@@ -1,6 +1,2 @@
-const IORedis = require("ioredis");
-const config = require("../config");
-
-const connection = new IORedis(config.redis);
-
-module.exports = connection;
+// Redis removed — no longer used. Kept as stub to prevent missing-module errors.
+module.exports = {};
