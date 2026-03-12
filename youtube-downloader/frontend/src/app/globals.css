@@ -1,0 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap");
+
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+:root {
+  --bg: #f5f6f8;
+  --fg: #111827;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --brand: #0f766e;
+  --brand-2: #0ea5e9;
+  --danger: #dc2626;
+}
+
+.dark {
+  --bg: #0b1220;
+  --fg: #f8fafc;
+  --card: #111a2c;
+  --muted: #94a3b8;
+  --brand: #14b8a6;
+  --brand-2: #38bdf8;
+  --danger: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(20, 184, 166, 0.2), transparent 30%),
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(14, 165, 233, 0.18),
+      transparent 30%
+    ),
+    var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.dark .card {
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
+}
+
+.progress-line {
+  background: linear-gradient(
+    90deg,
+    var(--brand),
+    var(--brand-2),
+    var(--brand)
+  );
+  background-size: 200% 100%;
+}

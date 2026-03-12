@@ -1,0 +1,22 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
+dist/
+out/
+coverage/
+
+# Runtime data
+.env
+.env.*
+!.env.example
+logs/
+tmp/
+backend/tmp/
+backend/logs/
+
+# OS
+.DS_Store
+Thumbs.db
